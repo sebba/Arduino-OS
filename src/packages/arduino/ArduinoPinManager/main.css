@@ -31,14 +31,50 @@
 .ApplicationArduinoPinManagerWindow application-window-content {
 }
 
-.ApplicationArduinoPinManagerWindow gui-vbox-container [data-id="BoardTemplateContainer"] {
+.ApplicationArduinoPinManagerWindow gui-vbox-container[data-id="BoardTemplateContainer"] {
   text-align: center;
+}
+
+.ApplicationArduinoPinManagerWindow gui-vbox[data-id="AnalogContainer"] {
+  height: 50%;
+  margin-top: 20%;
+  /*background-color: rgba(168, 159, 157, 0.62);*/
+}
+
+.ApplicationArduinoPinManagerWindow gui-vbox[data-id="DigitalContainer"] {
+  margin-top: 10px;
+  border-left: 5px solid #696969;
+  /*background-color: rgba(168, 159, 157, 0.62);*/
 }
 
 .ApplicationArduinoPinManagerWindow gui-vbox {
   text-align: center;
 }
 
-.ApplicationArduinoPinManagerWindow gui-switch {
-  margin-left: 15px;
+.ApplicationArduinoPinManagerWindow gui-button {
+  margin: 0 5px;
+  width: 60%;
+}
+
+.ApplicationArduinoPinManagerWindow gui-label {
+  margin-top: 6px;
+  width: 20%;
+}
+
+.ApplicationArduinoPinManagerWindow gui-label.pin-value {
+  width: 50%;
+  background-color: rgba(201,195,194,0.3);
+}
+
+.ApplicationArduinoPinManagerWindow .pin-value-hidden {
+  display: none;
+}
+
+
+.ApplicationArduinoPinManagerWindow .pin-container {
+  padding-left: 5px;
+}
+
+.ApplicationArduinoPinManagerWindow button {
+  background-color: rgba(168, 159, 157, 0.62);
 }

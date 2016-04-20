@@ -48,28 +48,29 @@
 
   ApplicationArduinoPinManagerWindow.prototype.init = function(wmRef, app, scheme) {
     var root = Window.prototype.init.apply(this, arguments);
-    var self = this;
 
     // Load and set up scheme (GUI) here
     scheme.render(this, 'ArduinoPinManagerWindow', root);
-    this.initUI(scheme);
+
+    this.initUI(scheme, wmRef);
 
     return root;
   };
 
 
-  ApplicationArduinoPinManagerWindow.prototype.initUI = function(scheme){
+  ApplicationArduinoPinManagerWindow.prototype.initUI = function(scheme, wm){
     var self = this;
-    scheme.find(this, "BoardTemplate").set("src", "/packages/target/ArduinoPinManager/Tian.jpg");
-    //var AnalogContainer = scheme.find(this, "AnalogPins"),
     var AnalogContainer = scheme.find(this, "AnalogContainer"),
         DigitalContainer = scheme.find(this, "DigitalContainer");
 
-    var regexp = new RegExp("/^[AD][1-9][0-9]{0,2}") ;
-    var regexp2 = /^[AD][0-9][0-9]{0,2}/ ;
+    var regexp = /^[AD][0-9][0-9]{0,2}/ ;
     var m, d, v ;
 
-    var pinsDir = new VFS.File ("/sys/class/gpio");
+    var container, label, sw;
+
+    scheme.find(self, "dac").on("change", function(ev){
+
+    })
 
 
     callAPI("exec", {command : "lingpio export"}, function(err, res){
@@ -80,10 +81,9 @@
 
 
     VFS.scandir("root:///sys/class/gpio", function(err, res) {
-      //console.log ("Items: " + JSON.stringify(res));
       res.forEach(function (item, index, array) {
         var fn = item.filename;
-        if ((m = fn.match(regexp2)) !== null || (m = fn.match("SCK")) !== null) {
+        if ((m = fn.match(regexp)) !== null || (m = fn.match("SCK")) !== null) {
           VFS.read("root:///sys/class/gpio/" + fn + "/direction", function(err, res){
             if(err)
               alert("Direction reading error : " + err)
@@ -92,7 +92,7 @@
                 if(e)
                   alert("Error in direction file reading : " + e);
                 else {
-                  d = r;
+                  d = r.replace(/(\r\n|\n|\r)/gm,"");
                   VFS.read("root:///sys/class/gpio/" + fn + "/value", function (err, res) {
                     if (err)
                       alert("Value reading error : " + err)
@@ -104,29 +104,121 @@
                           v = r;
                           //console.log(index + ") " + fn + " : " + d + " | " + v);
 
-                          if(fn[0] == "A") {
-                            var container = scheme.create(self, "gui-vbox", {id: fn + "Container"}, AnalogContainer);
-                            var label = scheme.create(self, "gui-label", {id: fn + "Label"}, container);
-                            var sw = scheme.create(self, "gui-switch", {id: fn + "Switch"}, label);
-                            scheme.create(self, "gui-button", {id: fn + "Button"}, sw);
-                          }
-                          if (fn[0] == "D" || fn == "SCK") {
-                            var container = scheme.create(self, "gui-vbox", {id: fn + "Container"}, DigitalContainer);
-                            var label = scheme.create(self, "gui-label", {id: fn + "Label"}, container);
-                            var sw = scheme.create(self, "gui-switch", {id: fn + "Switch"}, label);
-                            scheme.create(self, "gui-button", {id: fn + "Button"}, sw);
-                          }
-
-                          scheme.find(self, fn+"Switch").set("value", (v%2 == 1));
+                          scheme.find(self, fn+"Switch").set("value", (v%2==1 ? "HIGH" : "LOW"));
+                          scheme.find(self, fn+"Switch").$element.setAttribute("data-value", (v%2==1 ? "HIGH" : "LOW"));
                           scheme.find(self, fn+"Button").set("value", d );
-                          scheme.find(self, fn+"Label").set("value", fn );
+                          scheme.find(self, fn+"Button").$element.setAttribute("data-value", d);
+
+                          scheme.find(self, fn+"Button").on("click", function(ev){
+                            var direction = this.$element.attributes["data-value"].value,
+                                newDirection,
+                                pinLabel = this.$element.attributes["data-id"].value,
+                                pin = this.$element.attributes["data-id"].value.indexOf("SCK") > -1 ? "SCK" : this.$element.attributes["data-id"].value.match(regexp)[0];
+
+
+                            direction == "in" ? newDirection = "out" : newDirection = "in";
+
+                            callAPI("exec", {command : "echo " + newDirection + " > /sys/class/gpio/" + pin + "/direction"}, function(err, res){
+                              if(err) {
+                                wm.notification({
+                                  icon : "status/error.png",
+                                  title : "Pin state",
+                                  message : "Error during pin direction change"
+                                })
+                              }
+                              else {
+
+                                var elements = document.getElementsByClassName("pin-value");
+                                elements.forEach(function(item, index, array){
+                                  if(newDirection == "out")
+                                    Utils.$addClass(item, "pin-value-hidden");
+                                  else
+                                    Utils.$removeClass(item, "pin-value-hidden");
+                                })
+
+
+                                scheme.find(self, pinLabel).$element.setAttribute("data-value", newDirection);
+                                scheme.find(self, pinLabel).set("value", newDirection);
+                                wm.notification({
+                                  icon : "status/dialog-information.png",
+                                  title : "Pin state",
+                                  message : pin + " direction changed from " + direction + " to " + newDirection
+                                })
+                              }
+
+                            })
+                          });
 
                           scheme.find(self, fn+"Switch").on("click", function(ev){
-                            alert("Change pin mode")
+
+                            var level = this.$element.attributes["data-value"].value,
+                              newLevel,
+                              pinLabel = this.$element.attributes["data-id"].value,
+                              pin = this.$element.attributes["data-id"].value.indexOf("SCK") > -1 ? "SCK" : this.$element.attributes["data-id"].value.match(regexp)[0];
+
+                            level == "HIGH" ? newLevel = "0" : newLevel = "1";
+
+                            callAPI("exec", {command : "echo " + (level == "HIGH" ?  "0" : "1") + " > /sys/class/gpio/" + pin + "/value"}, function(err, res){
+                              if(err) {
+                                wm.notification({
+                                  icon : "status/error.png",
+                                  title : "Pin state",
+                                  message : "Error during pin value change"
+                                })
+                              }
+                              else {
+                                //scheme.find(self, fn+"Switch").set("value", (v%2==1 ? "HIGH" : "LOW"));
+                                //scheme.find(self, fn+"Switch").$element.setAttribute("data-value", (v%2==1 ? "HIGH" : "LOW"));
+
+                                scheme.find(self, fn+"Switch").set("value", (level=="HIGH" ? "LOW" : "HIGH"));
+                                scheme.find(self, fn+"Switch").$element.setAttribute("data-value", (level=="HIGH" ? "LOW" : "HIGH"));
+                                wm.notification({
+                                  icon : "status/dialog-information.png",
+                                  title : "Pin state",
+                                  message : pin + " value changed from " + level + " to " + (level=="HIGH" ? "LOW" : "HIGH") + "[" + newLevel + "]"
+                                })
+                              }
+
+                            })
                           });
-                          scheme.find(self, fn+"Button").on("click", function(ev){
-                            alert("Change pin state");
+
+                          scheme.find(self, fn+"Read").on("click", function(ev){
+
+                            var pinLabel = this.$element.attributes["data-id"].value,
+                                pin = this.$element.attributes["data-id"].value.indexOf("SCK") > -1 ? "SCK" : this.$element.attributes["data-id"].value.match(regexp)[0],
+                                pinValue = scheme.find(self, fn+"Value");
+
+                            if(scheme.find(self, "dac").get("value") == false)
+                              VFS.read("root:///sys/class/gpio/" + pin + "/value", function(err, res){
+                              if(err)
+                                wm.notification({
+                                  icon : "status/error.png",
+                                  title : "Pin state",
+                                  message : "Error during reading of pin" + pin
+                                });
+                              else {
+                                VFS.abToText(res, "text/plain", function (e, r) {
+                                  scheme.find(self, fn + "Value").set("value", r);
+                                })
+                              }
+                            });
+                            else {
+                              callAPI("exec", {command : "cat /sys/bus/iio/devices/iio:device0/in_voltage_" + pin + "_raw"}, function(err, res){
+                                if(err)
+                                  alert("ERROR in dac read of " + pin)
+                                else{
+                                  VFS.abToText(res, "text/plain", function (e, r) {
+                                    if(e)
+                                      alert("Error in dac pin value reding")
+                                    else
+                                        pinValue.set("value", r.length > 0 ? r : "no value")
+                                  });
+                                }
+                              })
+                            }
+
                           });
+
                         }
                       });
                     }
@@ -137,9 +229,21 @@
           })
         }
       });
+
+      scheme.find(self, "dac").on("change", function(ev){
+            wm.notification({
+              icon : "status/dialog-information.png",
+              title : "Pin state",
+              message : "ADC " + (ev.target.checked == true ? "enabled" : "disabled" )
+            })
+      });
+
+
     });
 
     });
+
+
 
     function callAPI(fn, args, cb) {
       cb = cb || function(){};
@@ -160,7 +264,6 @@
     }
 
   }
-
 
 
 
